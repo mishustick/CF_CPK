@@ -22,21 +22,36 @@ class Message:
 
     @staticmethod
     def bts2dbl(bts):
-        got_mes = struct.unpack('<'+16 * 'i' + 7 * 'f' + 6 * 'i', bts)
-        header = got_mes[0]
-        nx = got_mes[16]
-        ny = got_mes[17]
-        nz = got_mes[18]
-        phix = got_mes[19]
-        phiy = got_mes[20]
-        phiz = got_mes[21]
-        gref = got_mes[22]
-        end = got_mes[28]
-        return Message(header, g_ref=gref, phi_x=phix, phi_y=phiy, phi_z=phiz,
-                 nx=nx, ny=ny, nz=nz)
+        if bts[:4] == b'9\x00\x00\x00':  # Если заголовок 57
+            got_mes = struct.unpack('<'+16 * 'i' + 7 * 'f' + 6 * 'i', bts)
+            header = got_mes[0]
+            nx = got_mes[16]
+            ny = got_mes[17]
+            nz = got_mes[18]
+            phix = got_mes[19]
+            phiy = got_mes[20]
+            phiz = got_mes[21]
+            gref = got_mes[22]
+            end = got_mes[28]
+            return Message(header, g_ref=gref, phi_x=phix, phi_y=phiy, phi_z=phiz,
+                     nx=nx, ny=ny, nz=nz)
+        elif bts[:4] == b'B\x00\x00\x00':  # Если заголовок 66
+            got_mes = struct.unpack(17 * 'i' + 7 * 'f', bts)
+            header = got_mes[0]
+            nx = got_mes[17]
+            ny = got_mes[18]
+            nz = got_mes[19]
+            phix = got_mes[20]
+            phiy = got_mes[21]
+            phiz = got_mes[22]
+            gref = got_mes[23]
+            return Message(header, g_ref=gref, phi_x=phix, phi_y=phiy, phi_z=phiz,
+                           nx=nx, ny=ny, nz=nz)
 
     def dbl2bts(self):
+        # Для отправки
         # Упаковка заголовка + 16 нулей + 7 полезных переменных
+        self.bts = bytes()
         self.bts += struct.pack('i', 66)
         for i in range(16):
             self.bts += struct.pack('i', 0)
@@ -49,8 +64,8 @@ class Message:
                 'phiz': self.phiz, 'gref': self.gref}
 
     def __str__(self):
-        return f'{self.nx},{self.ny},{self.nz},{self.phix},' \
-               f'{self.phiy},{self.phiz},{self.phiz}'
+        return f'{self.nx};{self.ny};{self.nz};{self.phix};' \
+               f'{self.phiy};{self.phiz};{self.phiz};'
 
 
     #def noise(self):
@@ -64,4 +79,5 @@ if __name__ == '__main__':
     m = Message(header=57, nx=1, ny=1, nz=1)
     print(m.nx)
     print(m.na())
-    print(m.time)
+    m.dbl2bts()
+    print(struct.unpack(17*'i'+7*'f',m.bts))
