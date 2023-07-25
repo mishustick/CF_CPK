@@ -3,24 +3,10 @@ import struct
 from queue import Queue
 import threading
 import time
-from cls_pr import Message
+from cls_pr import Message, SenRec
 
 
 # Запись в файл
-def saver(que):
-    print('Saver запущен!')
-    while True:
-        items = que.get()
-        f_rec = open('log_rec.txt', 'a')
-        f_sen = open('log_sen.txt', 'a')
-        for el in items:
-            if el.header == 57:
-                f_rec.write(str(el.time)+';'+str(el)+str(el.header)+'\n')
-            elif el.header == 66:
-                f_sen.write(str(el.time)+';'+str(el)+str(el.header)+'\n')
-        f_rec.close()
-        f_sen.close()
-
 
 def receiving(UDP_IP, UDP_PORT):
     sock = socket.socket(socket.AF_INET,  # Internet
@@ -51,16 +37,14 @@ def sending(UDP_IP, UDP_PORT, que_sen):
         item.dbl2bts()
         s_m = Message.bts2dbl(item.bts)
         data_sen.append(s_m)
-        #sock.sendto(item.bts, (UDP_IP, UDP_PORT))  # Отправляем в виде 66 + 15 * 0 + 7 п
+        sock.sendto(item.bts, (UDP_IP, UDP_PORT))  # Отправляем в виде 66 + 15 * 0 + 7 п
         if len(data_sen) == 100:
             queue_rec.put(data_sen)
             data_sen = []
 
 
-curr_time = time.perf_counter()
-
-res_ip = "192.168.1.64"
-sen_ip = "192.168.1.64"
+res_ip = "172.20.10.3"
+sen_ip = "172.20.10.3"
 port = 5004
 queue_rec = Queue()
 queue_sen = Queue()
@@ -73,13 +57,25 @@ f_s = open('log_sen.txt', 'w')
 f_s.write('time;nx;ny;nz;phix;phiy;phiz;gref;header\n')
 f_s.close()
 
-t_sending = threading.Thread(target=sending, args=(sen_ip, port, queue_sen))
-t_reseveing = threading.Thread(target=receiving, args=(res_ip, port))
-t_sav = threading.Thread(target=saver, args=(queue_rec,))
+#t_sending = threading.Thread(target=sending, args=(sen_ip, port, queue_sen))
+#t_reseveing = threading.Thread(target=receiving, args=(res_ip, port))
+#t_sav = threading.Thread(target=saver, args=(queue_rec,))
 
-t_sav.start()
-t_reseveing.start()
-t_sending.start()
+mes = Message.bts2dbl(b'B\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00?\x9a\x99\x99?\x9a\x99\x99?\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00')
+print(mes.header)
+rec = SenRec(ip=res_ip, port=5004, chr='rec')
+t_rec = threading.Thread(target=rec.start_rec)
+t_rec.start()
+sen = SenRec(ip=res_ip, port=5004)
+sen.star_saver()
+rec.star_saver()
+sen.start_sen()
+sen.que_sen.put(mes)
 
-t_reseveing.join()
-t_sending.join()
+
+#t_reseveing.start()
+#t_sav.start()
+#t_sending.start()
+
+#t_reseveing.join()
+#t_sending.join()
