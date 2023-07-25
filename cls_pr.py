@@ -1,6 +1,9 @@
 import struct
+import socket
+import threading
 from time import perf_counter
 from datetime import datetime
+from queue import Queue
 
 
 class Message:
@@ -73,6 +76,81 @@ class Message:
     #    for x in dir(self):
     #        if not x.startswith('_') and getattr(self, x) != 0 and x in us_dat:
     #            self.__setattr__(x, self.__getattribute__(x) + numpy.random.normal(0, 0.01))
+
+
+class SenRec:
+
+    def __init__(self, ip, port, chr='sen',):
+        self.ip = ip
+        self.port = port
+        self.chr = chr
+        self.receiving = False
+        self.sending = False
+        self.que_sen = Queue()
+        self.que_rec = Queue()
+        self.data_sen = []
+
+    def start_sen(self):
+        t_sen = threading.Thread(target=self.sender)
+        t_sen.start()
+
+    def sender(self):
+        print('Отправитель запущен!')
+        UDP_IP = self.ip
+        UDP_PORT = self.port
+        sock = socket.socket(socket.AF_INET,  # Internet
+                             socket.SOCK_DGRAM)  # UDP
+        while True:
+            item = self.que_sen.get()  # Получаем сообщение из очереди
+            item.dbl2bts()  # Переводим в байты
+            item.time = datetime.now()
+            sock.sendto(item.bts, (UDP_IP, UDP_PORT))
+            self.data_sen.append(item)
+            print('Отправил:', item)
+            if len(self.data_sen) == 1:
+                self.que_rec.put(self.data_sen)
+                print('HEADER:', self.data_sen[0].header)
+                self.data_sen = []
+
+    def start_rec(self):
+        if self.receiving:
+            return
+        self.receiving = True
+
+        print('Получение запущено')
+        UDP_IP = self.ip
+        UDP_PORT = self.port
+        sock = socket.socket(socket.AF_INET,  # Internet
+                             socket.SOCK_DGRAM)  # UDP
+        sock.bind((UDP_IP, UDP_PORT))
+        data_rec = []
+        while self.receiving:
+            data, addr = sock.recvfrom(1024)  # buffer size is 1024 bytes
+            m = Message.bts2dbl(data)
+            print(m.time, m.na())
+            data_rec.append(m)
+            if len(data_rec) == 10:
+                self.que_rec.put(data_rec)  # Добавляем текущий кэш сообщений в очередь на запись
+                data_rec = []  # Сбрасываем текущий кэш сообщений
+
+    def star_saver(self):
+        t_sav = threading.Thread(target=self.saver)  # Создаем поток на запись
+        print('Saver запущен!')
+        t_sav.start()
+
+    def saver(self):
+        while True:
+            que = self.que_rec
+            items = que.get()
+            f_rec = open('log_rec.txt', 'a')
+            f_sen = open('log_sen.txt', 'a')
+            for el in items:
+                if el.header == 57:
+                    f_rec.write(str(el.time)+';'+str(el)+str(el.header)+'\n')
+                elif el.header == 66:
+                    f_sen.write(str(el.time)+';'+str(el)+str(el.header)+'\n')
+            f_rec.close()
+            f_sen.close()
 
 
 if __name__ == '__main__':
